@@ -1,1 +1,0 @@
-{"frames":[{"func":"ggplot(avg_injuries_by_category, aes(x = reorder(finding_category, \n    avg_injuries), y = avg_injuries, fill = finding_category))","file":"","line_number":0,"end_line_number":0,"character_number":0,"end_character_number":0}],"message":"Error: object 'avg_injuries_by_category' not found\n"}
