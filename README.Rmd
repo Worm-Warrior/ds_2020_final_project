@@ -1,6 +1,6 @@
 ---
 title: "Aviation Safety Analysis: Trends in NTSB Accident Data"
-output: html_document
+output: md_document
 author: "Harrison Voss"
 ---
 
@@ -20,21 +20,21 @@ This dataset includes data from 2008 to present, with thousands of incident repo
 
 So in the NTSB system:
 
-- Accidents = events with damage or injuries
+-   Accidents = events with damage or injuries
 
-- Incidents = less severe events (like equipment malfunctions that were corrected before causing harm)
+-   Incidents = less severe events (like equipment malfunctions that were corrected before causing harm)
 
 **Research Questions**
 
 This project investigates the following key questions about aviation safety:
 
-1. Have incidents been increasing or decreasing over time?
+1.  Have incidents been increasing or decreasing over time?
 
-2. What kinds of events/accidents are most common?
+2.  What kinds of events/accidents are most common?
 
-3. Where do they happen most often—is there a geographic trend?
+3.  Where do they happen most often—is there a geographic trend?
 
-4. Is there a trend in when incidents occur (time of year or time of day)?
+4.  Is there a trend in when incidents occur (time of year or time of day)?
 
 ## Data Cleaning and Preperation
 
@@ -91,27 +91,27 @@ cat("Records removed:", nrow(events) - nrow(aviation_clean), "\n")
 
 str(aviation_clean)
 ```
+
 #### Cleaning Notes:
 
-- Date parsing: The ev_date field was parsed as month-day-year with time. Records with missing or unparseable dates were removed (approximately 5-10% of records).
+-   Date parsing: The ev_date field was parsed as month-day-year with time. Records with missing or unparseable dates were removed (approximately 5-10% of records).
 
-- Geographic filter: Only incidents in the USA were retained to focus analysis on domestic aviation safety. International incidents accounted for roughly 20% of the dataset.
+-   Geographic filter: Only incidents in the USA were retained to focus analysis on domestic aviation safety. International incidents accounted for roughly 20% of the dataset.
 
-- Type conversions: Numeric fields (coordinates, injury counts) were explicitly converted to ensure proper calculation. Any records with invalid numeric conversions were coerced to NA and retained in the dataset (with NA flagged in analysis).
+-   Type conversions: Numeric fields (coordinates, injury counts) were explicitly converted to ensure proper calculation. Any records with invalid numeric conversions were coerced to NA and retained in the dataset (with NA flagged in analysis).
 
-- Standardization: Country names were standardized to uppercase to avoid matching errors from inconsistent capitalization.
+-   Standardization: Country names were standardized to uppercase to avoid matching errors from inconsistent capitalization.
 
 #### Final dataset characteristics:
-- Time period: 2008 to present
 
-- Total incidents: `r nrow(aviation_clean)`
+-   Time period: 2008 to present
 
-# Exploratory Analysis 
+-   Total incidents: `r nrow(aviation_clean)`
 
-
-
+# Exploratory Analysis
 
 ## Question 1: Have Incidents Been Increasing or Decreasing?
+
 ```{r, results='hide'}
 # Count incidents by year
 incidents_by_year <- aviation_clean %>%
@@ -140,6 +140,7 @@ ggplot(incidents_by_year, aes(x = ev_year, y = incident_count)) +
 ```
 
 ### Findings:
+
 If we ignore the current year (incomplete dataset) and focus on the general trends, we can see that it does look like the number of incidents has been going down over time. However, there seems to be some sharp downturns that could be due to missing data.
 
 Overall though, the trend does seem to be downward.
@@ -189,7 +190,6 @@ print(colnames(aviation_clean))
 cat("\n\nSample data:\n")
 print(head(aviation_clean %>% select(ev_id, finding_description, finding_category, Cause_Factor), 10))
 ```
-
 
 ```{r, results='hide'}
 # First, examine the main event type categories (ACC vs INC)
@@ -311,6 +311,7 @@ if("Cause_Factor" %in% colnames(aviation_clean)) {
 ```
 
 ### Which are More Likely to Be Factors Vs. Causes?
+
 ```{r, results='hide'}
 # Analyze Cause vs Factor breakdown by finding category
 cause_factor_by_category <- aviation_clean %>%
@@ -362,6 +363,7 @@ avg_injuries_by_category <- aviation_clean %>%
 
 print(avg_injuries_by_category)
 ```
+
 ```{r}
 # Visualization
 ggplot(avg_injuries_by_category, aes(x = reorder(finding_category, avg_injuries), y = avg_injuries, fill = finding_category)) +
@@ -386,13 +388,13 @@ ggplot(avg_injuries_by_category, aes(x = reorder(finding_category, avg_injuries)
 
 By analyzing the NTSB Findings data, we now understand that incidents cluster into broad categories, such as Aircraft issues, Personnel issues, Environmental conditions, and others. This breakdown shows:
 
-- We can see that the most common issue's are by far Aircraft, and Personnel Issues.
+-   We can see that the most common issue's are by far Aircraft, and Personnel Issues.
 
-- We can see that Aircraft and Personnel issues are almost always the cause, but Environmental and Organizational issues can sometimes be a factor instead.
+-   We can see that Aircraft and Personnel issues are almost always the cause, but Environmental and Organizational issues can sometimes be a factor instead.
 
-- We can see that Accidents are (unfortunately) much more common than incidents, meaning that the vast majority of the time when an event happens, there is some type of damage or injury.
+-   We can see that Accidents are (unfortunately) much more common than incidents, meaning that the vast majority of the time when an event happens, there is some type of damage or injury.
 
-- We can see that average injuries for the most common events are relatively low, while the one accident attributed to the Main System caused massive numbers of injuries.
+-   We can see that average injuries for the most common events are relatively low, while the one accident attributed to the Main System caused massive numbers of injuries.
 
 ## Question 3: What States and Months Have the Most Incidents?
 
