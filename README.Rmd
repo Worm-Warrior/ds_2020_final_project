@@ -36,7 +36,7 @@ This project investigates the following key questions about aviation safety:
 
 4.  Is there a trend in when incidents occur (time of year or time of day)?
 
-## Data Cleaning and Preperation
+## Data Cleaning and Preparation
 
 ### Data import
 
@@ -114,34 +114,39 @@ str(aviation_clean)
 
 ```{r, results='hide'}
 # Count incidents by year
-incidents_by_year <- aviation_clean %>%
-  group_by(ev_year) %>%
+incidents_by_year_type <- aviation_clean %>%
+  group_by(ev_year, ev_type) %>%
   summarise(
     incident_count = n(),
     .groups = 'drop'
   ) %>%
-  filter(!is.na(ev_year))
+  filter(!is.na(ev_year)) %>%
+  arrange(ev_year)
 
-# Time-series plot
-ggplot(incidents_by_year, aes(x = ev_year, y = incident_count)) +
-  geom_line(color = "steelblue", size = 1) +
-  geom_point(color = "steelblue", size = 2) +
+# Plot with separate lines for ACC and INC
+ggplot(incidents_by_year_type, aes(x = ev_year, y = incident_count, color = ev_type, fill = ev_type)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  geom_smooth(method = "loess", se = TRUE, alpha = 0.2) +
   labs(
     title = "Aviation Incidents Over Time (2008-Present)",
     x = "Year",
     y = "Number of Incidents",
-    subtitle = "USA-based incidents from NTSB database"
+    color = "Event Type",
+    fill = "Event Type",
+    subtitle = "Accidents (ACC) vs Incidents (INC) with trend lines"
   ) +
   theme_minimal() +
   theme(
     plot.title = element_text(size = 14, face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1)
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(10, 20, 10, 10)
   )
 ```
 
 ### Findings:
 
-If we ignore the current year (incomplete dataset) and focus on the general trends, we can see that it does look like the number of incidents has been going down over time. However, there seems to be some sharp downturns that could be due to missing data.
+If we ignore the current year (incomplete dataset) and 2020 (COVID) and focus on the general trends, we can see that it does look like the number of incidents has been going down over time. However, there seems to be some sharp downturns that could be due to missing data.
 
 Overall though, the trend does seem to be downward.
 
@@ -344,19 +349,28 @@ ggplot(cause_factor_by_category, aes(x = reorder(finding_category, total), y = p
   theme(
     plot.margin = margin(10, 50, 10, 10)
   ) +
-  scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0.05)))
+  scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0.05, 0.05))) + 
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = expansion(mult = c(0.15, 0.15)))
 ```
 
 ### Average Injuries Caused
 
-```{r, results = 'hide'}
-# Average injuries by finding category
+```{r}
+# Calculate actual injuries (total - no injury)
+aviation_clean <- aviation_clean %>%
+  mutate(
+    actual_injuries = inj_tot_t - inj_tot_n
+  )
+
+# Average actual injuries by finding category
 avg_injuries_by_category <- aviation_clean %>%
   filter(!is.na(finding_category)) %>%
   group_by(finding_category) %>%
   summarise(
-    avg_injuries = mean(inj_tot_t, na.rm = TRUE),
+    avg_injuries = mean(actual_injuries, na.rm = TRUE),
     count = n(),
+    total_actual_injuries = sum(actual_injuries, na.rm = TRUE),
     .groups = 'drop'
   ) %>%
   arrange(desc(avg_injuries))
@@ -373,7 +387,7 @@ ggplot(avg_injuries_by_category, aes(x = reorder(finding_category, avg_injuries)
   labs(
     title = "Average Number of Injuries by Finding Category",
     x = "Finding Category",
-    y = "Average Injuries per Incident",
+    y = "Average Injuries per Incident (excluding no-injury cases)",
     subtitle = "Which issue types result in the most injuries?"
   ) +
   theme_minimal() +
@@ -382,6 +396,45 @@ ggplot(avg_injuries_by_category, aes(x = reorder(finding_category, avg_injuries)
     plot.margin = margin(10, 50, 10, 10)
   ) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.15)))
+```
+
+### Percent That Had No Injuries
+```{r}
+# Calculate percent of events with no injuries by category
+no_injury_by_category <- aviation_clean %>%
+  filter(!is.na(finding_category)) %>%
+  group_by(finding_category) %>%
+  summarise(
+    total_events = n(),
+    no_injury_events = sum(inj_tot_n > 0, na.rm = TRUE),
+    percent_no_injury = round(100 * sum(inj_tot_n > 0, na.rm = TRUE) / n(), 1),
+    .groups = 'drop'
+  ) %>%
+  arrange(desc(percent_no_injury))
+
+print(no_injury_by_category)
+```
+
+```{r}
+# Visualization
+ggplot(no_injury_by_category, aes(x = reorder(finding_category, percent_no_injury), y = percent_no_injury, fill = finding_category)) +
+  geom_col() +
+  geom_text(aes(label = paste0(percent_no_injury, "%")), hjust = -0.2, size = 3) +
+  coord_flip() +
+  labs(
+    title = "Percent of Events with No Injuries by Finding Category",
+    x = "Finding Category",
+    y = "Percent of Events (%)",
+    subtitle = "How many events resulted in no injuries?"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.margin = margin(10, 50, 10, 10)
+  ) +
+  scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0.05, 0.05))) + 
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = expansion(mult = c(0.15, 0.15)))
 ```
 
 ### Findings:
@@ -394,9 +447,9 @@ By analyzing the NTSB Findings data, we now understand that incidents cluster in
 
 -   We can see that Accidents are (unfortunately) much more common than incidents, meaning that the vast majority of the time when an event happens, there is some type of damage or injury.
 
--   We can see that average injuries for the most common events are relatively low, while the one accident attributed to the Main System caused massive numbers of injuries.
+-   We can see that average injuries for the most common events are low, and that there is a sizeable percentage of events that have no injuries.
 
-## Question 3: What States and Months Have the Most Incidents?
+## Question 3: What States Most Events?
 
 ```{r}
 state_counts <- aviation_clean %>%
@@ -412,10 +465,20 @@ ggplot(state_counts, aes(x = reorder(ev_state, n), y = n)) +
     y = "Number of Events"
   ) +
   theme_minimal() +
-  geom_text(aes(label = n), hjust = -0.2, size = 3)
+  geom_text(aes(label = n), hjust = -0.2, size = 3) +    scale_x_discrete(expand = c(0, 0)) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.15)))
+
 ```
 
-## Question 4: What Time Do They Occur?
+### Findings:
+
+These are mostly what we would expect, the higher the population/tourism, the more events.
+
+Alaska is an outlier in terms of population to events, but this is easily explained by the extreme environment.
+
+## Question 4: What Time Do Events Happen?
+
+### By Month
 
 ```{r}
 # Count events by month
@@ -438,3 +501,206 @@ ggplot(month_counts, aes(x = ev_month, y = n)) +
   theme_minimal() +
   geom_text(aes(label = n), vjust = -0.5, size = 3)
 ```
+
+### By Hour
+
+```{r}
+aviation_clean <- aviation_clean %>%
+  mutate(
+    hour = as.numeric(str_sub(str_pad(ev_time, width = 4, side = "left", pad = "0"), 1, 2))
+  )
+# Count incidents by hour of day
+hour_counts <- aviation_clean %>%
+  filter(!is.na(hour)) %>%
+  group_by(hour) %>%
+  summarise(
+    count = n(),
+    avg_injuries = mean(inj_tot_t, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(hour)
+
+# Visualization
+ggplot(hour_counts, aes(x = hour, y = count)) +
+  geom_col(fill = "coral", alpha = 0.8) +
+  scale_x_continuous(
+    breaks = seq(0, 23, by = 1),
+    labels = paste0(seq(0, 23, by = 1), ":00")
+  ) +
+  scale_y_continuous(
+    name = "Number of Events",
+  ) +
+  labs(
+    title = "Aviation Events by Hour of Day",
+    x = "Hour of Day",
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(10, 20, 10, 10)
+  )
+```
+
+```{r}
+# Extract day of week from ev_date
+aviation_clean <- aviation_clean %>%
+  mutate(
+    day_of_week = wday(ev_date, label = TRUE, abbr = FALSE)
+  )
+
+# Count incidents by day of week
+day_counts <- aviation_clean %>%
+  filter(!is.na(day_of_week)) %>%
+  group_by(day_of_week) %>%
+  summarise(
+    count = n(),
+    avg_injuries = mean(inj_tot_t, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Visualization
+ggplot(day_counts, aes(x = day_of_week, y = count)) +
+  geom_col(fill = "steelblue", alpha = 0.8) +
+  scale_y_continuous(
+    name = "Number of Events",
+  ) +
+  labs(
+    title = "Aviation Events by Day of Week",
+    x = "Day of Week",
+    y = "Number of Events",
+    subtitle = "Bars = event count" 
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(10, 20, 10, 10)
+  )
+```
+
+
+### Covid By Month / Hour
+```{r}
+# Filter to COVID period (2020) only
+covid_2020 <- aviation_clean %>%
+  filter(ev_year == 2020)
+
+# Count incidents by day of week
+covid_day_counts <- covid_2020 %>%
+  filter(!is.na(day_of_week)) %>%
+  group_by(day_of_week) %>%
+  summarise(
+    count = n(),
+    avg_injuries = mean(actual_injuries, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Visualization
+ggplot(covid_day_counts, aes(x = day_of_week, y = count)) +
+  geom_col(fill = "steelblue", alpha = 0.8) +
+  scale_y_continuous(
+    name = "Number of Events",
+  ) +
+  labs(
+    title = "Aviation Events by Day of Week - 2020 (COVID)",
+    x = "Day of Week",
+    y = "Number of Events",
+    subtitle = "Bars = event count"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(10, 20, 10, 10)
+  )
+```
+
+```{r}
+covid_hour_counts <- covid_2020 %>%
+  filter(!is.na(hour)) %>%
+  group_by(hour) %>%
+  summarise(
+    count = n(),
+    avg_injuries = mean(actual_injuries, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(hour)
+
+ggplot(covid_hour_counts, aes(x = hour, y = count)) +
+  geom_col(fill = "coral", alpha = 0.8) +
+  scale_x_continuous(
+    breaks = seq(0, 23, by = 1),
+    labels = paste0(seq(0, 23, by = 1), ":00")
+  ) +
+  scale_y_continuous(
+    name = "Number of Events",
+  ) +
+  labs(
+    title = "Aviation Events by Hour of Day - 2020 (COVID)",
+    x = "Hour of Day",
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.margin = margin(10, 20, 10, 10)
+  )
+```
+
+### Findings
+
+In terms of day of the week, it is as we expect, the weekends when people are getting back from trips are the highest amount of events.
+
+In terms of hours of the day, it looks like from 3:00PM to 11:00PM is by far the most common slot for events to happen.
+
+The month is a bit surprising, one might expect that more events happen during the holidays like Christmas, Thanksgiving, and New Years, but it seems that they mostly happen in the summer.
+
+We can guess that this is because people want to book their vacations / time off with nice weather, and people who come to the U.S want to do so in summer as well.
+
+When we filter by just COVID, we can see that the day of the week and the hour graphs are a bit different.
+
+The hour graph is shifted a little later in the day, and the day of the week seems a little more random.
+
+This is probably due to uncertainty around flying during the time, and people might just want a flight no matter the day/time.
+
+## Conclusion
+This analysis of NTSB aviation accident data reveals important patterns about the nature and timing of aviation incidents in the United States, with implications for safety practices and public awareness.
+
+### Key findings
+
+#### Incident Trends
+
+Over the 2008-present period, aviation incidents have shown a gradual downward trend, suggesting that overall aviation safety has improved despite initial public concern. The anomaly in 2020 reflects the disruption caused by the COVID-19 pandemic and its impact on flight operations.
+
+#### Nature of Events
+
+The overwhelming majority (97%) of reported events are accidents rather than incidents, indicating that when aviation events occur, they typically result in damage or injury.
+
+#### Root Causes
+
+My analysis of NTSB findings reveals that aviation incidents are dominated by two categories: Aircraft issues and Personnel issues. These account for the vast majority of events, while system failures are exceptionally rare (representing only one event in our dataset). Importantly, Aircraft and Personnel issues are almost always direct causes rather than contributing factors, indicating clear points of failure that can be addressed through design improvements and training.
+
+#### Geographic Patterns
+
+As expected, states with larger populations and higher tourism activity (California, Texas, Florida) report more incidents. Alaska stands out as an outlier with a disproportionately high number of incidents relative to population, which reflects the challenges posed by its extreme environment, geography, and proportionally higher percent of population that holds pilot licenses.
+
+#### Temporal
+
+Incidents peak during summer months (May-August), driven primarily by increased general aviation activity during favorable weather conditions, vacation travel, and tourism—not by holiday travel as might be intuitively expected.
+
+A strong concentration of incidents occurs between 3:00 PM and 11:00 PM, corresponding with peak flight operations including afternoon departures, evening arrivals, and recreational flying.
+
+Weekend incidents are slightly elevated, consistent with recreational and leisure travel patterns.
+
+The 2020 data shows subtle shifts in temporal patterns, with operations occurring at different times and less adherence to typical weekly patterns, reflecting the disruptions and uncertainty that characterized air travel during the pandemic.
+
+### Implications
+
+The downward trend in aviation incidents, combined with the rarity of system failures, suggests that current aviation safety systems are effective. However, the continued prevalence of Aircraft and Personnel-related issues indicates that there might still be more improvement left in the areas of aircraft maintenance and pilot / crew training.
+
+The concentration of incidents during summer months and afternoon/evening hours reflects peak hours of flights, and not necessarily an issue in safety, but could be used to implement times of higher alertness during certain times of the day.
+
+### Limitations
+
+This analysis examines absolute incident counts without normalization against total flight operations. To fully assess aviation safety trends, incident rates would need to be compared against total flight hours or number of flights. Additionally, this dataset encompasses both commercial and general aviation, with general aviation likely representing the majority of incidents due to its much larger operational scale and higher incident rate per flight hour.
+
+### Further Research
+
+Deeper investigation into specific Aircraft and Personnel failure modes could identify the most critical areas for safety improvements. Comparative analysis between commercial and general aviation would help determine whether safety interventions should be targeted differently for each segment. Finally, examining whether specific aircraft types or operators show patterns of reduced incidents could inform best practices across the industry.
